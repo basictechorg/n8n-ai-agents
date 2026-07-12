@@ -1,0 +1,221 @@
+{
+  "id": "wf348d24b74731",
+  "name": "Scrape Twitter for mentions of company",
+  "nodes": [
+    {
+      "name": "Filter Tweet Data",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        1260,
+        300
+      ],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "Tweet",
+              "value": "={{$(\"Get last 50 mentions\").item.json[\"text\"]}}"
+            },
+            {
+              "name": "Tweet URL",
+              "value": "=https://twitter.com/{{$(\"Get last 50 mentions\").item.json[\"user\"][\"screen_name\"]}}/status/{{$(\"Get last 50 mentions\").item.json[\"id_str\"]}}"
+            }
+          ]
+        },
+        "options": {},
+        "keepOnlySet": true
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Run Every 10 Minutes",
+      "type": "n8n-nodes-base.cron",
+      "position": [
+        260,
+        320
+      ],
+      "parameters": {
+        "triggerTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "unit": "minutes",
+              "value": 10
+            }
+          ]
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Now - 10 minutes",
+      "type": "n8n-nodes-base.dateTime",
+      "position": [
+        620,
+        320
+      ],
+      "parameters": {
+        "value": "={{Date()}}",
+        "action": "calculate",
+        "options": {},
+        "duration": "={{$(\"Run Every 10 Minutes\").item.json.parameter[\"triggerTimes\"][\"item\"][0][\"value\"]}}",
+        "timeUnit": "={{$(\"Run Every 10 Minutes\").item.json.parameter[\"triggerTimes\"][\"item\"][0][\"unit\"]}}",
+        "operation": "subtract"
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Get last 50 mentions",
+      "type": "n8n-nodes-base.twitter",
+      "position": [
+        820,
+        320
+      ],
+      "parameters": {
+        "operation": "search",
+        "searchText": "={{$(\"Setup\").item.json.parameter[\"values\"][\"string\"][1][\"value\"]}}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "twitterOAuth1Api": {
+          "name": "Add your twitterOAuth1Api credential"
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Created since last run?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1020,
+        320
+      ],
+      "parameters": {
+        "conditions": {
+          "dateTime": [
+            {
+              "value1": "={{$json[\"created_at\"]}}",
+              "value2": "={{$items(\"Now - 10 minutes\", 0, 0)[0].json.data}}"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Setup",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        440,
+        320
+      ],
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "slackChannel",
+              "value": "#recent-tweets"
+            },
+            {
+              "name": "twitterSearchValue",
+              "value": "@n8n_io"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "typeVersion": 1
+    },
+    {
+      "name": "Post to Slack",
+      "type": "n8n-nodes-base.slack",
+      "position": [
+        1440,
+        300
+      ],
+      "parameters": {
+        "text": "=New Mention!: {{$(\"Filter Tweet Data\").item.json[\"Tweet\"]}}.\nSee it here: {{$(\"Filter Tweet Data\").item.json[\"Tweet URL\"]}}",
+        "channel": "={{$(\"Setup\").item.json.parameter[\"values\"][\"string\"][0][\"value\"]}}",
+        "attachments": [],
+        "otherOptions": {}
+      },
+      "credentials": {
+        "slackApi": {
+          "name": "Add your slackApi credential"
+        }
+      },
+      "typeVersion": 1
+    }
+  ],
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "connections": {
+    "Setup": {
+      "main": [
+        [
+          {
+            "node": "Now - 10 minutes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Now - 10 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get last 50 mentions",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Tweet Data": {
+      "main": [
+        [
+          {
+            "node": "Post to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get last 50 mentions": {
+      "main": [
+        [
+          {
+            "node": "Created since last run?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run Every 10 Minutes": {
+      "main": [
+        [
+          {
+            "node": "Setup",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Created since last run?": {
+      "main": [
+        [
+          {
+            "node": "Filter Tweet Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
